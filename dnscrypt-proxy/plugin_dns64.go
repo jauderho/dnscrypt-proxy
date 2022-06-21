@@ -34,13 +34,16 @@ func (plugin *PluginDNS64) Description() string {
 }
 
 func (plugin *PluginDNS64) Init(proxy *Proxy) error {
-	plugin.ipv4Resolver = proxy.listenAddresses[0] //recursively to ourselves
+	if len(proxy.listenAddresses) == 0 {
+		return errors.New("At least one listening IP address must be configured for the DNS64 plugin to work")
+	}
+	plugin.ipv4Resolver = proxy.listenAddresses[0] // query is sent to ourselves
 	plugin.pref64Mutex = new(sync.RWMutex)
 	plugin.proxy = proxy
 
 	if len(proxy.dns64Prefixes) != 0 {
-		plugin.pref64Mutex.RLock()
-		defer plugin.pref64Mutex.RUnlock()
+		plugin.pref64Mutex.Lock()
+		defer plugin.pref64Mutex.Unlock()
 		for _, prefStr := range proxy.dns64Prefixes {
 			_, pref, err := net.ParseCIDR(prefStr)
 			if err != nil {
@@ -118,10 +121,12 @@ func (plugin *PluginDNS64) Eval(pluginsState *PluginsState, msg *dns.Msg) error 
 		}
 	}
 
-	synthAAAAs := make([]dns.RR, 0)
+	synth64 := make([]dns.RR, 0)
 	for _, answer := range resp.Answer {
 		header := answer.Header()
-		if header.Rrtype == dns.TypeA {
+		if header.Rrtype == dns.TypeCNAME {
+			synth64 = append(synth64, answer)
+		} else if header.Rrtype == dns.TypeA {
 			ttl := initialTTL
 			if ttl > header.Ttl {
 				ttl = header.Ttl
@@ -129,7 +134,7 @@ func (plugin *PluginDNS64) Eval(pluginsState *PluginsState, msg *dns.Msg) error 
 
 			ipv4 := answer.(*dns.A).A.To4()
 			if ipv4 != nil {
-				plugin.pref64Mutex.Lock()
+				plugin.pref64Mutex.RLock()
 				for _, prefix := range plugin.pref64 {
 					ipv6 := translateToIPv6(ipv4, prefix)
 					synthAAAA := new(dns.AAAA)
@@ -140,15 +145,15 @@ func (plugin *PluginDNS64) Eval(pluginsState *PluginsState, msg *dns.Msg) error 
 						Ttl:    ttl,
 					}
 					synthAAAA.AAAA = ipv6
-					synthAAAAs = append(synthAAAAs, synthAAAA)
+					synth64 = append(synth64, synthAAAA)
 				}
-				plugin.pref64Mutex.Unlock()
+				plugin.pref64Mutex.RUnlock()
 			}
 		}
 	}
 
 	synth := EmptyResponseFromMessage(msg)
-	synth.Answer = append(synth.Answer, synthAAAAs...)
+	synth.Answer = append(synth.Answer, synth64...)
 
 	pluginsState.synthResponse = synth
 	pluginsState.action = PluginsActionSynth
@@ -236,8 +241,8 @@ func (plugin *PluginDNS64) fetchPref64(resolver string) error {
 		return errors.New("Empty Pref64 list")
 	}
 
-	plugin.pref64Mutex.RLock()
-	defer plugin.pref64Mutex.RUnlock()
+	plugin.pref64Mutex.Lock()
+	defer plugin.pref64Mutex.Unlock()
 	plugin.pref64 = prefixes
 	return nil
 }
@@ -249,8 +254,8 @@ func (plugin *PluginDNS64) refreshPref64() error {
 		}
 	}
 
-	plugin.pref64Mutex.Lock()
-	defer plugin.pref64Mutex.Unlock()
+	plugin.pref64Mutex.RLock()
+	defer plugin.pref64Mutex.RUnlock()
 	if len(plugin.pref64) == 0 {
 		return errors.New("Empty Pref64 list")
 	}
