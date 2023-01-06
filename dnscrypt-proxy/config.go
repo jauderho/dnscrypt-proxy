@@ -38,6 +38,7 @@ type Config struct {
 	LocalDoH                 LocalDoHConfig `toml:"local_doh"`
 	UserName                 string         `toml:"user_name"`
 	ForceTCP                 bool           `toml:"force_tcp"`
+	HTTP3                    bool           `toml:"http3"`
 	Timeout                  int            `toml:"timeout"`
 	KeepAlive                int            `toml:"keepalive"`
 	Proxy                    string         `toml:"proxy"`
@@ -115,6 +116,7 @@ func newConfig() Config {
 		Timeout:                  5000,
 		KeepAlive:                5,
 		CertRefreshDelay:         240,
+		HTTP3:                    false,
 		CertIgnoreTimestamp:      false,
 		EphemeralKeys:            false,
 		Cache:                    true,
@@ -344,7 +346,10 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 		dlog.SetLogLevel(dlog.SeverityInfo)
 	}
 	dlog.TruncateLogFile(config.LogFileLatest)
-	if config.UseSyslog {
+	proxy.showCerts = *flags.ShowCerts || len(os.Getenv("SHOW_CERTS")) > 0
+	isCommandMode := *flags.Check || proxy.showCerts || *flags.List || *flags.ListAll
+	if isCommandMode {
+	} else if config.UseSyslog {
 		dlog.UseSyslog(true)
 	} else if config.LogFile != nil {
 		dlog.UseLogFile(*config.LogFile)
@@ -374,6 +379,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.xTransport.tlsDisableSessionTickets = config.TLSDisableSessionTickets
 	proxy.xTransport.tlsCipherSuite = config.TLSCipherSuite
 	proxy.xTransport.mainProto = proxy.mainProto
+	proxy.xTransport.http3 = config.HTTP3
 	if len(config.BootstrapResolvers) == 0 && len(config.BootstrapResolversLegacy) > 0 {
 		dlog.Warnf("fallback_resolvers was renamed to bootstrap_resolvers - Please update your configuration")
 		config.BootstrapResolvers = config.BootstrapResolversLegacy
@@ -694,8 +700,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	} else if len(config.BootstrapResolvers) > 0 {
 		netprobeAddress = config.BootstrapResolvers[0]
 	}
-	proxy.showCerts = *flags.ShowCerts || len(os.Getenv("SHOW_CERTS")) > 0
-	if !*flags.Check && !*flags.ShowCerts && !*flags.List && !*flags.ListAll {
+	if !isCommandMode {
 		if err := NetProbe(proxy, netprobeAddress, netprobeTimeout); err != nil {
 			return err
 		}
