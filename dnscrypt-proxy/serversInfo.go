@@ -232,6 +232,7 @@ func (serversInfo *ServersInfo) refresh(proxy *Proxy) (int, error) {
 	for _, registeredServer := range registeredServers {
 		if err = serversInfo.refreshServer(proxy, registeredServer.name, registeredServer.stamp); err == nil {
 			liveServers++
+			proxy.xTransport.internalResolverReady = true
 		}
 	}
 	serversInfo.Lock()
@@ -260,7 +261,7 @@ func (serversInfo *ServersInfo) estimatorUpdate(currentActive int) {
 	if activeCount == serversCount {
 		return
 	}
-	candidate := rand.Intn(serversCount-activeCount)+activeCount
+	candidate := rand.Intn(serversCount-activeCount) + activeCount
 	candidateRtt, currentActiveRtt := serversInfo.inner[candidate].rtt.Value(), serversInfo.inner[currentActive].rtt.Value()
 	if currentActiveRtt < 0 {
 		currentActiveRtt = candidateRtt
