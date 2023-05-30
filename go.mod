@@ -3,7 +3,7 @@ module github.com/dnscrypt/dnscrypt-proxy
 go 1.20
 
 require (
-	github.com/BurntSushi/toml v1.2.1
+	github.com/BurntSushi/toml v1.3.0
 	github.com/VividCortex/ewma v1.2.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
@@ -13,7 +13,7 @@ require (
 	github.com/jedisct1/dlog v0.0.0-20230211133026-0338add8743f
 	github.com/jedisct1/go-clocksmith v0.0.0-20230211133011-392c1afea73e
 	github.com/jedisct1/go-dnsstamps v0.0.0-20230211133001-124a632de565
-	github.com/jedisct1/go-hpke-compact v0.0.0-20230211184420-51d4440017ce
+	github.com/jedisct1/go-hpke-compact v0.0.0-20230513092519-91c912752223
 	github.com/jedisct1/go-minisign v0.0.0-20230410063418-3d885d71f62c
 	github.com/jedisct1/xsecretbox v0.0.0-20230211185120-2025cdbb9f0f
 	github.com/k-sone/critbitgo v1.4.0
